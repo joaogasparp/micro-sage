@@ -1,0 +1,9 @@
+services:
+  logger-service:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload
+    volumes:
+      - ./app:/app/app
+      - ./logs_storage:/app/logs_storage
+    ports:
+      - "8004:8004"
