@@ -1,0 +1,120 @@
+version: '3.8'
+services:
+  order-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: order_user
+      POSTGRES_PASSWORD: order_pass
+      POSTGRES_DB: order_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - order_pgdata:/var/lib/postgresql/data
+
+  inventory-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: inventory_user
+      POSTGRES_PASSWORD: inventory_pass
+      POSTGRES_DB: inventory_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - inventory_pgdata:/var/lib/postgresql/data
+
+  billing-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: billing_user
+      POSTGRES_PASSWORD: billing_pass
+      POSTGRES_DB: billing_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - billing_pgdata:/var/lib/postgresql/data
+
+  order-service:
+    build: ./order-service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    volumes:
+      - ./order-service/app:/app/app
+    environment:
+      DATABASE_URL: postgresql://order_user:order_pass@order-db:5432/order_db
+    ports:
+      - "8001:8001"
+    depends_on:
+      - order-db
+
+  inventory-service:
+    build: ./inventory-service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    volumes:
+      - ./inventory-service/app:/app/app
+    environment:
+      POSTGRES_USER: inventory_user
+      POSTGRES_PASSWORD: inventory_pass
+      POSTGRES_DB: inventory_db
+      POSTGRES_HOST: inventory-db
+      POSTGRES_PORT: 5432
+    ports:
+      - "8002:8002"
+    depends_on:
+      - inventory-db
+
+  billing-service:
+    build: ./billing-service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+    volumes:
+      - ./billing-service/app:/app/app
+    environment:
+      POSTGRES_USER: billing_user
+      POSTGRES_PASSWORD: billing_pass
+      POSTGRES_DB: billing_db
+      POSTGRES_HOST: billing-db
+      POSTGRES_PORT: 5432
+    ports:
+      - "8003:8003"
+    depends_on:
+      - billing-db
+
+  notification-service:
+    build: ./notification-service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload
+    volumes:
+      - ./notification-service/app:/app/app
+    ports:
+      - "8004:8004"
+
+  logger-service:
+    build: ./logger-service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
+    volumes:
+      - ./logger-service/app:/app/app
+      - ./logger-service/logs_storage:/app/logs_storage
+    ports:
+      - "8005:8005"
+
+  api-gateway:
+    build: ./api-gateway
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    volumes:
+      - ./api-gateway/app:/app/app
+    ports:
+      - "8080:8080"
+    environment:
+      ORDER_SERVICE_URL: http://order-service:8001
+      INVENTORY_SERVICE_URL: http://inventory-service:8002
+      BILLING_SERVICE_URL: http://billing-service:8003
+      NOTIFICATION_SERVICE_URL: http://notification-service:8004
+      LOGGER_SERVICE_URL: http://logger-service:8005
+    depends_on:
+      - order-service
+      - inventory-service
+      - billing-service
+      - notification-service
+      - logger-service
+
+volumes:
+  order_pgdata:
+  inventory_pgdata:
+  billing_pgdata:
